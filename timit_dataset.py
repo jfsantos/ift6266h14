@@ -33,7 +33,7 @@ class TimitFrameData(DenseDesignMatrix):
         ph = list(itertools.chain(*ph))
 
         X = fr[:,0:framelen-1]
-        y = np.array([fr[:,framelen]]).T # y.ndim has to be 2
+        y = np.array([fr[:,framelen-1]]).T # y.ndim has to be 2
         if stop is None:
             stop = len(y)
 
@@ -68,7 +68,7 @@ class TimitPhoneData(DenseDesignMatrix):
         one_hot = np.zeros((len(ph),len(data.phonelist)),dtype='float32')
         idx = [data.phonelist.index(p) for p in ph]
         for i in xrange(len(ph)):
-            one_hot[i,idx] = 1.
+            one_hot[i,idx[i]] = 1.
         y = one_hot
 
         super(TimitPhoneData,self).__init__(X=X, y=y)
