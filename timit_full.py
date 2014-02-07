@@ -124,6 +124,8 @@ import os
 import re
 import tempfile
 import time
+import itertools
+from collections import OrderedDict
 
 from nltk.tree import Tree
 from nltk.internals import import_from_stdlib
@@ -131,7 +133,9 @@ from nltk.internals import import_from_stdlib
 from nltk.corpus.reader.util import *
 from nltk.corpus.reader.api import *
 
+import numpy as np
 from scipy.io import wavfile
+from scikits.talkbox import segment_axis
 
 class TimitFullCorpusReader(CorpusReader):
     """
@@ -166,19 +170,21 @@ class TimitFullCorpusReader(CorpusReader):
         # Ensure that wave files don't get treated as unicode data:
         if isinstance(encoding, basestring):
             encoding = [('.*\.WAV', None), ('.*', encoding)]
-
-        CorpusReader.__init__(self, root,
-                              find_corpus_fileids(root, self._FILE_RE),
+            
+        rootp = FileSystemPathPointer(root)
+        CorpusReader.__init__(self, rootp,
+                              find_corpus_fileids(rootp, self._FILE_RE),
                               encoding=encoding)
 
         self._utterances = [name[:-4] for name in
-                            find_corpus_fileids(root, self._UTTERANCE_RE)]
+                            find_corpus_fileids(rootp, self._UTTERANCE_RE)]
         """A list of the utterance identifiers for all utterances in
         this corpus."""
 
         self._speakerinfo = None
-        self._root = root
+        self._root = rootp
         self.speakers = sorted(set(u.split('/')[0] for u in self._utterances))
+        self.phonelist = list(OrderedDict.fromkeys(self.phones()))
 
     def fileids(self, filetype=None):
         """
@@ -215,15 +221,15 @@ class TimitFullCorpusReader(CorpusReader):
 
         utterances = self._utterances[:]
         if dialect is not None:
-            utterances = [u for u in utterances if u[2] in dialect]
+            utterances = [u for u in utterances if u.split('/')[1] in dialect]
         if sex is not None:
-            utterances = [u for u in utterances if u[4] in sex]
+            utterances = [u for u in utterances if u.split('/')[2][0] in sex]
         if spkrid is not None:
-            utterances = [u for u in utterances if u[:9] in spkrid]
+            utterances = [u for u in utterances if u.split('/')[2] in spkrid]
         if sent_type is not None:
-            utterances = [u for u in utterances if u[11] in sent_type]
+            utterances = [u for u in utterances if u.split('/')[3] in sent_type]
         if sentid is not None:
-            utterances = [u for u in utterances if u[10:] in spkrid]
+            utterances = [u for u in utterances if u.split('/')[3] in sentid]
         return utterances
 
     def transcription_dict(self):
@@ -367,6 +373,16 @@ class TimitFullCorpusReader(CorpusReader):
         fs, s = wavfile.read(os.path.join(self._root, utterance + '.WAV'))
         return fs, s
         
+    def frames(self, utterance, framelen, overlap):
+        phtimes = self.phone_times(utterance)
+        s = self.samples(utterance)[1]
+        uttfr = []
+        uttph = []
+        for p in phtimes:
+            if p[2] - p[1] > framelen:
+                uttfr.append(segment_axis(s[p[1]:p[2]], framelen, overlap))
+                uttph.append(list(itertools.repeat(p[0], uttfr[-1].shape[0])))
+        return np.vstack(uttfr), list(itertools.chain(*uttph))
 
     def audiodata(self, utterance, start=0, end=None):
         assert(end is None or end > start)
