@@ -1,4 +1,4 @@
-from timit_full import TimitFullCorpusReader
+from timit_dataset import TimitFrameData
 import itertools
 import numpy as np
 from pylearn2.datasets import DenseDesignMatrix
@@ -12,30 +12,9 @@ from pylearn2.train_extensions import best_params
 import cPickle as pickle
 import theano
 
-# Gets all utterances from <spkrid>, splits them into <framelen>
-# frames with <overlap> overlaps. Returns the frames and correspondent
-# phone symbols.
-
-spkrid = 'MTCS0'
-
-class TimitFrameData(DenseDesignMatrix):
-    def __init__(self, spkrid, framelen, overlap, start, stop):
-        data = TimitFullCorpusReader('/home/jfsantos/data/TIMIT/')
-        # Some list comprehension/zip magic here (but it works!)
-        spkrfr = [data.frames(z, framelen, overlap) for z in
-             data.utteranceids(spkrid=spkrid)]
-        fr, ph = zip(*[(x[0], x[1]) for x in spkrfr])
-        fr = np.vstack(fr)*2**-15
-        ph = list(itertools.chain(*ph))
-
-        X = fr[:,0:framelen-1]
-        y = np.array([fr[:,framelen]]).T # y.ndim has to be 2
-
-        super(TimitFrameData,self).__init__(X=X[start:stop], y=y[start:stop])
-
-train = TimitFrameData(spkrid=spkrid, framelen=160, overlap=159, start=0, stop=10000)
-valid = TimitFrameData(spkrid=spkrid, framelen=160, overlap=159, start=10000, stop=12000)
-test = TimitFrameData(spkrid=spkrid, framelen=160, overlap=159, start=12000, stop=18000)
+train = TimitFrameData('/home/jfsantos/data/TIMIT/', framelen=160, overlap=159, start=0, stop=10000)
+valid = TimitFrameData('/home/jfsantos/data/TIMIT/', framelen=160, overlap=159, start=10000, stop=12000)
+test = TimitFrameData('/home/jfsantos/data/TIMIT/', framelen=160, overlap=159, start=12000, stop=18000)
 
 i0 = VectorSpace(159)
 s0 = Sigmoid(layer_name='h0', dim=500, sparse_init=150)
