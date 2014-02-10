@@ -19,13 +19,17 @@ class TimitFrameData(DenseDesignMatrix):
         spkrid...
         """
         data = TimitFullCorpusReader(datapath)
+        print start, stop
         # Some list comprehension/zip magic here (but it works!)
         if spkrid:
-            utterances = data.utteranceids(spkrid=spkrid)[start:]
+            utterances = data.utteranceids(spkrid=spkrid)
         else:
-            utterances = data.utteranceids()[start:]
+            utterances = data.utteranceids()
         if stop is not None:
-            utterances = utterances[0:stop]
+            utterances = utterances[start:stop]
+        else:
+            utterances = utterances[start:]
+        print "# of utterances: ", len(utterances)
         uttfr = [data.frames(z, framelen, overlap) for z in
                   utterances]
         fr, ph = zip(*[(x[0], x[1]) for x in uttfr])

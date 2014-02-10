@@ -11,10 +11,13 @@ from pylearn2.train import Train
 from pylearn2.train_extensions import best_params
 import cPickle as pickle
 import theano
+from sys import argv
 
-train = TimitFrameData('/home/jfsantos/data/TIMIT/', framelen=160, overlap=159, start=0, stop=10000)
-valid = TimitFrameData('/home/jfsantos/data/TIMIT/', framelen=160, overlap=159, start=10000, stop=12000)
-test = TimitFrameData('/home/jfsantos/data/TIMIT/', framelen=160, overlap=159, start=12000, stop=18000)
+timit_root = argv[1]
+
+train = TimitFrameData(timit_root, framelen=160, overlap=159, start=0, stop=10)
+valid = TimitFrameData(timit_root, framelen=160, overlap=159, start=1000, stop=1003)
+test = TimitFrameData(timit_root, framelen=160, overlap=159, start=3000, stop=3005)
 
 i0 = VectorSpace(159)
 s0 = Sigmoid(layer_name='h0', dim=500, sparse_init=150)
