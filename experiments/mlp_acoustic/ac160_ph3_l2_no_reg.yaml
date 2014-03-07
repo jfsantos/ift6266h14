@@ -1,0 +1,89 @@
+!obj:pylearn2.train.Train {
+    dataset: &train !obj:research.code.pylearn2.datasets.timit.TIMIT {
+        which_set: 'train',
+        frame_length: &flen 160,
+        frames_per_example: &fpe 1,
+        samples_to_predict: &ylen 1,
+        n_next_phones: 1,
+        n_prev_phones: 1,
+        #start: 0,
+        #stop: 100,
+    },
+    model: !obj:mlp_with_source.MLPWithSource {
+        batch_size: 512,
+        layers: [
+            !obj:mlp_with_source.CompositeLayerWithSource {
+                layer_name: 'c',
+                layers: [
+                    !obj:pylearn2.models.mlp.Sigmoid {
+                        layer_name: 'h1',
+                        dim: 500,
+                        irange: 0.05,
+                    },
+                    !obj:pylearn2.models.mlp.Linear {
+                        layer_name: 'h2',
+                        dim: 100,
+                        irange: 0.05,
+                    },
+                ],
+            },
+            !obj:pylearn2.models.mlp.Linear {
+                layer_name: 'y',
+                dim: *ylen,
+                irange: 0.05,
+            },
+        ],
+        input_space: !obj:pylearn2.space.CompositeSpace {
+            components: [
+                !obj:pylearn2.space.VectorSpace {
+                    dim: *flen,
+                },
+                !obj:pylearn2.space.VectorSpace {
+                    dim: 186,
+                },
+            ],
+        },
+        input_source: ['features', 'phones'],
+    },
+    algorithm: !obj:pylearn2.training_algorithms.sgd.SGD {
+        learning_rate: .01,
+        monitoring_dataset: {
+            'train': *train,
+            'valid': !obj:research.code.pylearn2.datasets.timit.TIMIT {
+                which_set: 'valid',
+                frame_length: *flen,
+                frames_per_example: *fpe,
+                samples_to_predict: *ylen,
+                n_next_phones: 1,
+                n_prev_phones: 1,
+            },
+            'test': !obj:research.code.pylearn2.datasets.timit.TIMIT {
+                which_set: 'valid',
+                frame_length: *flen,
+                frames_per_example: *fpe,
+                samples_to_predict: *ylen,
+                n_next_phones: 1,
+                n_prev_phones: 1,
+            },
+        },
+        cost: !obj:pylearn2.costs.mlp.Default {},
+        termination_criterion: !obj:pylearn2.termination_criteria.And {
+            criteria: [
+                !obj:pylearn2.termination_criteria.MonitorBased {
+                    channel_name: "valid_objective",
+                    prop_decrease: 0.,
+                    N: 10
+                },
+                !obj:pylearn2.termination_criteria.EpochCounter {
+                    max_epochs: 200
+                }
+            ]
+        }
+    },
+    extensions: [
+        !obj:pylearn2.train_extensions.best_params.MonitorBasedSaveBest {
+            channel_name: 'valid_objective',
+            save_path: "test_phone_best.pkl"
+        }
+    ]
+}
