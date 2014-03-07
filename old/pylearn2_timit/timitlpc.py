@@ -13,13 +13,12 @@ import gc
 import os.path
 import functools
 import numpy
-from pylearn2.utils.iteration import resolve_iterator_class
+from pylearn2.utils.iteration import FiniteDatasetIterator, resolve_iterator_class
 from pylearn2.datasets.dataset import Dataset
 from pylearn2.space import CompositeSpace, VectorSpace, IndexSpace
 from pylearn2.utils import serial
 from pylearn2.utils import safe_zip
 from segmentaxis import segment_axis
-from iteration import FiniteDatasetIterator
 import scipy.stats
 from scikits.talkbox import lpc
 
@@ -164,90 +163,105 @@ class TIMITlpc(Dataset):
         self.num_examples = self.cumulative_example_indexes[-1]
 
         # DataSpecs
-        features_space = VectorSpace(
-            dim=self.frame_length * self.frames_per_example
-        )
-        features_source = 'features'
-        features_dtype = self.samples_sequences[0].dtype
-        def features_map_fn(indexes):
-            rval = []
-            for sequence_index, example_index in self._fetch_index(indexes):
-                rval.append(self.samples_sequences[sequence_index][example_index:example_index
-                    + self.frames_per_example].ravel())
-            return rval
+        # features_space = VectorSpace(
+        #     dim=self.frame_length * self.frames_per_example
+        # )
+        # features_source = 'features'
+        # features_dtype = self.samples_sequences[0].dtype
+        # def features_map_fn(indexes):
+        #     rval = []
+        #     for sequence_index, example_index in self._fetch_index(indexes):
+        #         rval.append(self.samples_sequences[sequence_index][example_index:example_index
+        #             + self.frames_per_example].ravel())
+        #     return rval
 
-        lpc_features_space = VectorSpace(
+        targets_space = VectorSpace(
             dim=self.lpc_order
         )
-        lpc_features_source = 'lpc_features'
-        lpc_features_dtype = self.samples_sequences[0].dtype
-        def lpc_features_map_fn(indexes):
+        targets_source = 'targets'
+        targets_dtype = numpy.float64
+        def targets_map_fn(indexes):
             rval = []
             for sequence_index, example_index in self._fetch_index(indexes):
                 rval.append(lpc(self.samples_sequences[sequence_index][example_index].T,self.lpc_order)[0][1:].ravel())
             return rval
 
-        targets_space = VectorSpace(dim=self.frame_length)
-        targets_source = 'targets'
-        targets_dtype = self.samples_sequences[0].dtype
-        def targets_map_fn(indexes):
+        features_space = IndexSpace(max_labels=62, dim=3)
+        features_source = 'features'
+        features_dtype = numpy.int16
+        def features_map_fn(indexes):
             rval = []
             for sequence_index, example_index in self._fetch_index(indexes):
-                rval.append(self.samples_sequences[sequence_index][example_index
-                    + self.frames_per_example].ravel())
+                if example_index != 0:
+                    if example_index != self.num_examples-1:
+                        rval.append(numpy.asarray(scipy.stats.mode(self.phones_sequences[sequence_index][(example_index-1):(example_index+2)], axis=1)[0].T, dtype=numpy.int16))
+                    else:
+                        rval.append(numpy.asarray(numpy.concatenate([scipy.stats.mode(self.phones_sequences[sequence_index][example_index-1:example_index+1], axis=1)[0].T, numpy.zeros((1,1))], axis=1).ravel(), dtype=numpy.int16))
+                else:
+                    rval.append(numpy.asarray(numpy.concatenate([numpy.zeros((1,1)), scipy.stats.mode(self.phones_sequences[sequence_index][example_index:example_index+2].T)[0].T]).ravel(), dtype=numpy.int16))
             return rval
 
-        space_components = [features_space, lpc_features_space, targets_space]
-        source_components = [features_source, lpc_features_source, targets_source]
-        dtypes_components = [features_dtype, lpc_features_dtype, targets_dtype]
-        map_fn_components = [features_map_fn, lpc_features_map_fn, targets_map_fn]
+        # targets_space = VectorSpace(dim=self.frame_length)
+        # targets_source = 'targets'
+        # targets_dtype = self.samples_sequences[0].dtype
+        # def targets_map_fn(indexes):
+        #     rval = []
+        #     for sequence_index, example_index in self._fetch_index(indexes):
+        #         rval.append(self.samples_sequences[sequence_index][example_index
+        #             + self.frames_per_example].ravel())
+        #     return rval
+
+        space_components = [features_space, targets_space]
+        source_components = [features_source, targets_source]
+        dtypes_components = [features_dtype, targets_dtype]
+        map_fn_components = [features_map_fn, targets_map_fn]
         batch_components = [None, None]
 
-        if not self.audio_only:
-            phones_space = IndexSpace(max_labels=61, dim=3)
-            phones_source = 'phones'
-            phones_dtype = self.phones_sequences[0].dtype
-            def phones_map_fn(indexes):
-                rval = []
-                for sequence_index, example_index in self._fetch_index(indexes):
-                    if example_index != 0:
-                        if example_index != self.num_examples-1:
-                            rval.append(scipy.stats.mode(self.phones_sequences[sequence_index][(example_index-1):(example_index+2)], axis=1)[0].T)
-                        else:
-                            rval.append(numpy.concatenate([scipy.stats.mode(self.phones_sequences[sequence_index][example_index-1:example_index+1], axis=1)[0].T, numpy.zeros((1,1))], axis=1)).ravel()
-                    else:
-                        rval.append(numpy.concatenate([numpy.zeros((1,1)), scipy.stats.mode(self.phones_sequences[sequence_index][example_index:example_index+1])[0].T])).ravel()
-                return rval
+        # if not self.audio_only:
+        #     phones_space = IndexSpace(max_labels=62, dim=3)
+        #     phones_source = 'phones'
+        #     phones_dtype = self.phones_sequences[0].dtype
+        #     def phones_map_fn(indexes):
+        #         rval = []
+        #         for sequence_index, example_index in self._fetch_index(indexes):
+        #             if example_index != 0:
+        #                 if example_index != self.num_examples-1:
+        #                     rval.append(scipy.stats.mode(self.phones_sequences[sequence_index][(example_index-1):(example_index+2)], axis=1)[0].T)
+        #                 else:
+        #                     rval.append(numpy.concatenate([scipy.stats.mode(self.phones_sequences[sequence_index][example_index-1:example_index+1], axis=1)[0].T, numpy.zeros((1,1))], axis=1)).ravel()
+        #             else:
+        #                 rval.append(numpy.concatenate([numpy.zeros((1,1)), scipy.stats.mode(self.phones_sequences[sequence_index][example_index:example_index+1])[0].T])).ravel()
+        #         return rval
 
-            phonemes_space = IndexSpace(max_labels=31, dim=1)
-            phonemes_source = 'phonemes'
-            phonemes_dtype = self.phonemes_sequences[0].dtype
-            def phonemes_map_fn(indexes):
-                rval = []
-                for sequence_index, example_index in self._fetch_index(indexes):
-                    rval.append(self.phonemes_sequences[sequence_index][example_index
-                        + self.frames_per_example].ravel())
-                return rval
+        #     phonemes_space = IndexSpace(max_labels=31, dim=1)
+        #     phonemes_source = 'phonemes'
+        #     phonemes_dtype = self.phonemes_sequences[0].dtype
+        #     def phonemes_map_fn(indexes):
+        #         rval = []
+        #         for sequence_index, example_index in self._fetch_index(indexes):
+        #             rval.append(self.phonemes_sequences[sequence_index][example_index
+        #                 + self.frames_per_example].ravel())
+        #         return rval
 
-            words_space = IndexSpace(max_labels=31, dim=1)
-            words_source = 'words'
-            words_dtype = self.words_sequences[0].dtype
-            def words_map_fn(indexes):
-                rval = []
-                for sequence_index, example_index in self._fetch_index(indexes):
-                    rval.append(self.words_sequences[sequence_index][example_index
-                        + self.frames_per_example].ravel())
-                return rval
+        #     words_space = IndexSpace(max_labels=31, dim=1)
+        #     words_source = 'words'
+        #     words_dtype = self.words_sequences[0].dtype
+        #     def words_map_fn(indexes):
+        #         rval = []
+        #         for sequence_index, example_index in self._fetch_index(indexes):
+        #             rval.append(self.words_sequences[sequence_index][example_index
+        #                 + self.frames_per_example].ravel())
+        #         return rval
 
-            space_components.extend([phones_space, phonemes_space,
-                                     words_space])
-            source_components.extend([phones_source, phonemes_source,
-                                     words_source])
-            dtypes_components.extend([phones_dtype, phonemes_dtype,
-                                     words_dtype])
-            map_fn_components.extend([phones_map_fn, phonemes_map_fn,
-                                     words_map_fn])
-            batch_components.extend([None, None, None])
+        #     space_components.extend([phones_space, phonemes_space,
+        #                              words_space])
+        #     source_components.extend([phones_source, phonemes_source,
+        #                              words_source])
+        #     dtypes_components.extend([phones_dtype, phonemes_dtype,
+        #                              words_dtype])
+        #     map_fn_components.extend([phones_map_fn, phonemes_map_fn,
+        #                              words_map_fn])
+        #     batch_components.extend([None, None, None])
 
         space = CompositeSpace(space_components)
         source = tuple(source_components)

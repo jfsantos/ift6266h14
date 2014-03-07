@@ -37,7 +37,7 @@ class TimitFrameData(DenseDesignMatrix):
         ph = list(itertools.chain(*ph))
 
         X = fr[:,0:framelen-1]
-        y = np.array([fr[:,framelen-1]]).T # y.ndim has to be 2
+        y = np.asmatrix([fr[:,framelen-1]]).T # y.ndim has to be 2
         if stop is None:
             stop = len(y)
 
@@ -76,4 +76,40 @@ class TimitPhoneData(DenseDesignMatrix):
         y = one_hot
 
         super(TimitPhoneData,self).__init__(X=X, y=y)
+
+class TimitFramePhoneData(DenseDesignMatrix):
+    """
+    Dataset with frames and corresponding one-hot encoded
+    phones.
+    """
+    def __init__(self, datapath, framelen, overlap, start=0, stop=None):
+        """
+        datapath: path to TIMIT raw data (using WAV format)
+        framelen: length of the acoustic frames
+        overlap: amount of acoustic samples to overlap
+        start: index of first TIMIT file to be used
+        end: index of last TIMIT file to be used
+        """
+        data = TimitFullCorpusReader(datapath)
+        # Some list comprehension/zip magic here (but it works!)
+        if stop is None:
+            utterances = data.utteranceids()[start:]
+        else:
+            utterances = data.utteranceids()[start:stop]
+        spkrfr = [data.frames(z, framelen, overlap) for z in
+                  utterances]
+        fr, ph = zip(*[(x[0], x[1]) for x in spkrfr])
+        framedata = np.vstack(fr)*2**-15
+        ph = list(itertools.chain(*ph))
+
+        # making y a one-hot output
+        one_hot = np.zeros((len(ph),len(data.phonelist)),dtype='float32')
+        idx = [data.phonelist.index(p) for p in ph]
+        for i in xrange(len(ph)):
+            one_hot[i,idx[i]] = 1.
+
+        X = np.hstack([framedata[:,0:framelen-1], one_hot])
+        y = np.asmatrix(framedata[:,framelen-1]).T
+
+        super(TimitFramePhoneData,self).__init__(X=X, y=y)
 
