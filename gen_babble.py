@@ -15,11 +15,7 @@ predict = theano.function([X], y)
 duration = 2
 fs = 16000
 
-(fs, s) = wavfile.read('/home/jfsantos/data/TIMIT/TEST/DR1/FJEM0/SA1.WAV')
-
 x0 = np.asmatrix(np.zeros((1,duration*fs)))
-#idx = randint(0,len(s))
-#x0[0,0:160] = s[idx:idx+160]
 
 def norm_data(x):
     return (x - TIMITnext._mean)/TIMITnext._std

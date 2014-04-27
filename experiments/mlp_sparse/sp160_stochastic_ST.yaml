@@ -1,43 +1,58 @@
 !obj:pylearn2.train.Train {
-    dataset: &train !obj:research.code.pylearn2.datasets.timit.TIMIT {
+    dataset: &train !obj:research.code.pylearn2.datasets.timit_sparse.TIMITSparse {
         which_set: 'train',
         frame_length: &flen 160,
         frames_per_example: &fpe 1,
-        samples_to_predict: &ylen 1,
         n_next_phones: 1,
         n_prev_phones: 1,
-        filter_fn: 'male_speakers'
-        #start: 0,
-        #stop: 100,
+        filter_fn: 'male_speakers',
+        start: 0,
+        stop: 100,
     },
     model: !obj:mlp_with_source.MLPWithSource {
-        batch_size: 512,
+        batch_size: 256,
         layers: [
             !obj:mlp_with_source.CompositeLayerWithSource {
                 layer_name: 'c',
                 layers: [
                     !obj:pylearn2.models.mlp.Sigmoid {
                         layer_name: 'h1',
-                        dim: 500,
-                        irange: 0.05,
+                        dim: 1000,
+                        irange: 0.1,
                     },
-                    !obj:pylearn2.models.mlp.Linear {
+                    !obj:pylearn2.models.mlp.Sigmoid {
                         layer_name: 'h2',
-                        dim: 100,
-                        irange: 0.05,
+                        dim: 250,
+                        irange: 0.1,
                     },
                 ],
             },
-            !obj:pylearn2.models.mlp.Linear {
-                layer_name: 'y',
-                dim: *ylen,
-                irange: 0.05,
+            !obj:pylearn2.models.mlp.Sigmoid {
+                layer_name: 'h3',
+                dim: 950,
+                irange: 0.1,
             },
+            !obj:pylearn2.models.mlp.Sigmoid {
+                layer_name: 'h4',
+                dim: 950,
+                irange: 0.1,
+            },
+            !obj:stochastic_gater.StraightThrough {
+                 dim: 950,
+                 hidden_dim: 2000,
+                 layer_name: 'y',
+                 sparsity_target: 0.0168,
+                 irange: [0.1,0.1,0.1],
+                 expert_activation: 'linear',
+                 hidden_activation: 'sigmoid',
+                 #sparse_init: [.5,.5,.5],
+                 #sparse_stdev: [1.,1.,1.],
+                 },
         ],
         input_space: !obj:pylearn2.space.CompositeSpace {
             components: [
                 !obj:pylearn2.space.VectorSpace {
-                    dim: *flen,
+                    dim: 950,
                 },
                 !obj:pylearn2.space.VectorSpace {
                     dim: 186,
@@ -47,34 +62,36 @@
         input_source: ['features', 'phones'],
     },
     algorithm: !obj:pylearn2.training_algorithms.sgd.SGD {
-        learning_rate: .01,
+        learning_rate: .1,
         monitoring_dataset: {
             'train': *train,
-            'valid': !obj:research.code.pylearn2.datasets.timit.TIMIT {
+            'valid': !obj:research.code.pylearn2.datasets.timit_sparse.TIMITSparse {
                 which_set: 'valid',
                 frame_length: *flen,
                 frames_per_example: *fpe,
-                samples_to_predict: *ylen,
                 n_next_phones: 1,
                 n_prev_phones: 1,
-                filter_fn: 'male_speakers'
+                filter_fn: 'male_speakers',
+                start: 0,
+                stop: 10,
             },
-            'test': !obj:research.code.pylearn2.datasets.timit.TIMIT {
+            'test': !obj:research.code.pylearn2.datasets.timit_sparse.TIMITSparse {
                 which_set: 'test',
                 frame_length: *flen,
                 frames_per_example: *fpe,
-                samples_to_predict: *ylen,
                 n_next_phones: 1,
                 n_prev_phones: 1,
-                filter_fn: 'male_speakers'
+                filter_fn: 'male_speakers',
+                start: 0,
+                stop: 20,
             },
         },
-        cost: !obj:pylearn2.costs.mlp.Default {},
+        cost: !obj:stochastic_gater.Stochastic1Cost {},
         termination_criterion: !obj:pylearn2.termination_criteria.And {
             criteria: [
                 !obj:pylearn2.termination_criteria.MonitorBased {
                     channel_name: "valid_objective",
-                    prop_decrease: 0.,
+                    prop_decrease: 0.000001,
                     N: 10
                 },
                 !obj:pylearn2.termination_criteria.EpochCounter {
@@ -86,7 +103,7 @@
     extensions: [
         !obj:pylearn2.train_extensions.best_params.MonitorBasedSaveBest {
             channel_name: 'valid_objective',
-            save_path: "ac160_ph3_l2_malespkr_corrected.pkl"
+            save_path: "sp160_stochastic_ST.pkl"
         }
     ]
 }

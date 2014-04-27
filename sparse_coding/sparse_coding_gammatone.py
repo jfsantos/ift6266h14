@@ -6,10 +6,10 @@ Sparse coding with a precomputed dictionary
 This is based on the example "Sparse coding with a precomputed dictionary" from scikit-learn. I've replaced the dictionary of Ricker wavelets by a dictionary with gammatones.
 
 """
-print(__doc__)
+#print(__doc__)
 
 import numpy as np
-import matplotlib.pylab as pl
+#import matplotlib.pylab as pl
 
 from sklearn.decomposition import SparseCoder
 
@@ -21,34 +21,18 @@ def gammatone_function(resolution, fc, center, fs=16000, l=4,
     return g
 
 def gammatone_matrix(b, fc, resolution, step):
-    """Dictionary of Ricker (mexican hat) wavelets"""
+    """Dictionary of gammatone functions"""
     centers = np.arange(0, resolution - step, step)
     D = np.empty((len(centers), resolution))
     for i, center in enumerate(centers):
         D[i] = gammatone_function(resolution, fc, center, b=b)
     D /= np.sqrt(np.sum(D ** 2, axis=1))[:, np.newaxis]
+    # TODO Drop dictionary items with amplitude larger than threshold
+    # around the last sample
     return D
 
 def erb(f):
     return 24.7+0.108*f
-
-def ricker_function(resolution, center, width):
-    """Discrete sub-sampled Ricker (mexican hat) wavelet"""
-    x = np.linspace(0, resolution - 1, resolution)
-    x = ((2 / ((np.sqrt(3 * width) * np.pi ** 1 / 4)))
-         * (1 - ((x - center) ** 2 / width ** 2))
-         * np.exp((-(x - center) ** 2) / (2 * width ** 2)))
-    return x
-
-
-def ricker_matrix(width, resolution, n_components):
-    """Dictionary of Ricker (mexican hat) wavelets"""
-    centers = np.linspace(0, resolution - 1, n_components)
-    D = np.empty((n_components, resolution))
-    for i, center in enumerate(centers):
-        D[i] = ricker_function(resolution, center, width)
-    D /= np.sqrt(np.sum(D ** 2, axis=1))[:, np.newaxis]
-    return D
 
 def erb_space(low_freq, high_freq, num_channels, EarQ = 9.26449, minBW = 24.7, order = 1):
     return -(EarQ*minBW) + np.exp(np.arange(1,num_channels+1)*(-np.log(high_freq + EarQ*minBW) + np.log(low_freq + EarQ*minBW))/num_channels) * (high_freq + EarQ*minBW)
@@ -56,8 +40,8 @@ def erb_space(low_freq, high_freq, num_channels, EarQ = 9.26449, minBW = 24.7, o
 if __name__ == '__main__':
     from scipy.io import wavfile
     from scikits.talkbox import segment_axis
-    resolution = 2048
-    step = 32
+    resolution = 160
+    step = 8
     b = 1.019
     n_channels = 50
     
@@ -67,14 +51,14 @@ if __name__ == '__main__':
                           fc in erb_space(150, 8000, n_channels))]
 
     # Load test signal
-    fs, y = wavfile.read('/home/jfsantos/data/TIMIT_orig/TRAIN/DR1/FCJF0/SA1.WAV')
+    fs, y = wavfile.read('/home/jfsantos/data/TIMIT/TRAIN/DR1/FCJF0/SA1.WAV')
     y = y / 2.0**15
     Y = segment_axis(y, resolution, overlap=resolution/2, end='pad')
     Y = np.hanning(resolution) * Y
 
     # segments should be windowed and overlap
     
-    coder = SparseCoder(dictionary=D_multi, transform_n_nonzero_coefs=200, transform_alpha=None, transform_algorithm='omp')
+    coder = SparseCoder(dictionary=D_multi, transform_n_nonzero_coefs=20, transform_alpha=None, transform_algorithm='omp')
     X = coder.transform(Y)
     density = len(np.flatnonzero(X))
     out= np.zeros((np.ceil(len(y)/resolution)+1)*resolution)
