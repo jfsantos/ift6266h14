@@ -42,8 +42,8 @@ class Conditional1Cost(Default):
         try:
             cost = self.expr(model=model, data=data, **kwargs)
         except TypeError,e:
-            # If anybody knows how to add type(seslf) to the exception message
-            # but still preserve the stack trace, please do so
+            # If anybody knows how to add type(seslf) to the exception
+            # message but still preserve the stack trace, please do so
             # The current code does neither
             e.message += " while calling "+str(type(self))+".__call__"
             print str(type(self))

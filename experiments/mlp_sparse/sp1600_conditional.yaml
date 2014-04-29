@@ -1,11 +1,11 @@
 !obj:pylearn2.train.Train {
     dataset: &train !obj:research.code.pylearn2.datasets.timit_sparse.TIMITSparse {
-        which_set: 'train',
-        frame_length: &flen 160,
+        which_set: 'valid',
+        frame_length: &flen 1600,
+        overlap: &olap 1400,
         frames_per_example: &fpe 1,
         n_next_phones: 1,
         n_prev_phones: 1,
-        filter_fn: 'male_speakers',
         start: 0,
         stop: 100,
     },
@@ -17,7 +17,7 @@
                 layers: [
                     !obj:pylearn2.models.mlp.Sigmoid {
                         layer_name: 'h1',
-                        dim: 1000,
+                        dim: 2000,
                         irange: 0.1,
                     },
                     !obj:pylearn2.models.mlp.Sigmoid {
@@ -29,24 +29,23 @@
             },
             !obj:pylearn2.models.mlp.Sigmoid {
                 layer_name: 'h3',
-                dim: 950,
+                dim: 1536,
                 irange: 0.1,
             },
             !obj:conditional_gater.SmoothTimesStochastic {
-                 dim: 950,
-                 hidden_dim: 950,
+                 dim: 1536,
+                 hidden_dim: 900,
                  layer_name: 'y',
                  hidden_activation: 'sigmoid',
-                 sparsity_target: 0.0168,
+                 sparsity_target: 0.10,
                  sparsity_cost_coeff: 1.0,
-                 irange: [0.01,0.01,0.01],
-                 stochastic_ratio = 1.0,
+                 irange: [0.1,0.1,0.1],
                  },
         ],
         input_space: !obj:pylearn2.space.CompositeSpace {
             components: [
                 !obj:pylearn2.space.VectorSpace {
-                    dim: 950,
+                    dim: 1536,
                 },
                 !obj:pylearn2.space.VectorSpace {
                     dim: 186,
@@ -56,48 +55,43 @@
         input_source: ['features', 'phones'],
     },
     algorithm: !obj:pylearn2.training_algorithms.sgd.SGD {
+        theano_function_mode: !obj:pylearn2.devtools.nan_guard.NanGuardMode {
+            nan_is_error: True,
+            inf_is_error: True
+    },
         learning_rate: .01,
         monitoring_dataset: {
             'train': *train,
             'valid': !obj:research.code.pylearn2.datasets.timit_sparse.TIMITSparse {
                 which_set: 'valid',
                 frame_length: *flen,
+                overlap: *olap,
                 frames_per_example: *fpe,
                 n_next_phones: 1,
                 n_prev_phones: 1,
-                filter_fn: 'male_speakers',
-                start: 0,
-                stop: 10,
+                start: 101,
+                stop: 110,
             },
             'test': !obj:research.code.pylearn2.datasets.timit_sparse.TIMITSparse {
-                which_set: 'test',
+                which_set: 'valid',
                 frame_length: *flen,
+                overlap: *olap,
                 frames_per_example: *fpe,
                 n_next_phones: 1,
                 n_prev_phones: 1,
-                filter_fn: 'male_speakers',
-                start: 0,
-                stop: 20,
+                start: 111,
+                stop: 130,
             },
         },
         cost: !obj:conditional_gater.Conditional1Cost {},
-        termination_criterion: !obj:pylearn2.termination_criteria.And {
-            criteria: [
-                !obj:pylearn2.termination_criteria.MonitorBased {
-                    channel_name: "valid_objective",
-                    prop_decrease: 0.000001,
-                    N: 10
-                },
-                !obj:pylearn2.termination_criteria.EpochCounter {
-                    max_epochs: 200
+        termination_criterion: !obj:pylearn2.termination_criteria.EpochCounter {
+                    max_epochs: 2000
                 }
-            ]
-        }
     },
     extensions: [
         !obj:pylearn2.train_extensions.best_params.MonitorBasedSaveBest {
             channel_name: 'valid_objective',
-            save_path: "sp160_conditional.pkl"
+            save_path: "sp1600_conditional_overlap.pkl"
         }
     ]
 }

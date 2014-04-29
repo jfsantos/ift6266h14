@@ -1,16 +1,4 @@
-"""
-===========================================
-Sparse coding with a precomputed dictionary
-===========================================
-
-This is based on the example "Sparse coding with a precomputed dictionary" from scikit-learn. I've replaced the dictionary of Ricker wavelets by a dictionary with gammatones.
-
-"""
-#print(__doc__)
-
 import numpy as np
-#import matplotlib.pylab as pl
-
 from sklearn.decomposition import SparseCoder
 
 def gammatone_function(resolution, fc, center, fs=16000, l=4,
@@ -20,15 +8,17 @@ def gammatone_function(resolution, fc, center, fs=16000, l=4,
     g[center:] = t**(l-1) * np.exp(-2*np.pi*b*erb(fc)*t)*np.cos(2*np.pi*fc*t)
     return g
 
-def gammatone_matrix(b, fc, resolution, step):
+def gammatone_matrix(b, fc, resolution, step, fs=16000, l=4, threshold=1e-2):
     """Dictionary of gammatone functions"""
     centers = np.arange(0, resolution - step, step)
-    D = np.empty((len(centers), resolution))
+    D = []
     for i, center in enumerate(centers):
-        D[i] = gammatone_function(resolution, fc, center, b=b)
+        t = np.linspace(0, resolution-(center+1), resolution-center)/fs
+        env = t**(l-1) * np.exp(-2*np.pi*b*erb(fc)*t)
+        if env[-1]/max(env) < threshold:
+            D.append(gammatone_function(resolution, fc, center, b=b, l=l))
+    D = np.asarray(D)
     D /= np.sqrt(np.sum(D ** 2, axis=1))[:, np.newaxis]
-    # TODO Drop dictionary items with amplitude larger than threshold
-    # around the last sample
     return D
 
 def erb(f):
@@ -43,7 +33,8 @@ if __name__ == '__main__':
     resolution = 160
     step = 8
     b = 1.019
-    n_channels = 50
+    n_channels = 64
+    overlap = 80
     
     # Compute a multiscale dictionary
     
@@ -53,17 +44,17 @@ if __name__ == '__main__':
     # Load test signal
     fs, y = wavfile.read('/home/jfsantos/data/TIMIT/TRAIN/DR1/FCJF0/SA1.WAV')
     y = y / 2.0**15
-    Y = segment_axis(y, resolution, overlap=resolution/2, end='pad')
+    Y = segment_axis(y, resolution, overlap=overlap, end='pad')
     Y = np.hanning(resolution) * Y
 
     # segments should be windowed and overlap
     
-    coder = SparseCoder(dictionary=D_multi, transform_n_nonzero_coefs=20, transform_alpha=None, transform_algorithm='omp')
+    coder = SparseCoder(dictionary=D_multi, transform_n_nonzero_coefs=None, transform_alpha=1., transform_algorithm='omp')
     X = coder.transform(Y)
     density = len(np.flatnonzero(X))
     out= np.zeros((np.ceil(len(y)/resolution)+1)*resolution)
     for k in range(0, len(X)):
-        idx = range(k*resolution/2,k*resolution/2 + resolution)
+        idx = range(k*(resolution-overlap),k*(resolution-overlap) + resolution)
         out[idx] += np.dot(X[k], D_multi)
     squared_error = np.sum((y - out[0:len(y)]) ** 2)
-    wavfile.write('reconst_win.wav', fs, np.asarray(out, dtype=np.float32))
+    wavfile.write('reconst_%d_%d.wav'%(resolution,overlap), fs, np.asarray(out, dtype=np.float32))
